@@ -11,6 +11,6 @@
   - **Tuval Sayfası, Resim çizme Sayfası** için geçici (temp) arayüzler oluşturuldu.
   - **Yapay Zeka ile resim üretim Sayfası, Profil Sayfası ve Resim Üretme Sayfası** için geçici (temp) arayüzler oluşturuldu.    
 
-
+<img src="assets/images/1.Hafta.gif" width="500" height="1000" alt="Proje Demo GIF'i">
 
 Gelecek hafta, sayfa bileşenlerinin işlevselliklerinin detaylandırılması ve kullanıcı etkileşimlerinin geliştirilmesi hedeflenmektedir.  
