@@ -20,7 +20,6 @@
 - **Canvas Sayfası Ek yapılar:** Resim çizmek için farklı secenekler ve düzenlemeler eklendi mobil ve web için kontroller sağlandı.
 - **Fire Base:** Resim yükleme için yapılar oluşturuldu.
 
+<img src="assets/images/Mobil.gif" width="500" height="1000" alt="Proje Demo GIF'i">
+
 <img src="assets/images/1.HaftaWeb.gif" width="1000" height="500" alt="Proje Demo GIF'i">
-
-<img src="assets/images/1.Hafta.gif" width="500" height="1000" alt="Proje Demo GIF'i">
-
