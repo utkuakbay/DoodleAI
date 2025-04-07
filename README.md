@@ -1,50 +1,26 @@
-# Welcome to your Expo app 👋
+# Doodle AI 👋
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+## 📌 Proje İlerleme Durumu – 1. Hafta  
 
-## Get started
+İlk hafta kapsamında aşağıdaki geliştirmeler tamamlanmıştır:  
 
-1. Install dependencies
+- **Firebase Entegrasyonu:** Kimlik doğrulama ve veri yönetimi için Firebase başarıyla projeye entegre edildi.  
+- **Menü Tasarımı:** Alt navigasyon çubuğu ile kullanıcı dostu bir menü tasarımı oluşturuldu.  
+- **Ana Sayfalar:**  
+  - **Giriş Sayfası** temel yapısı tamamlandı.  
+  - **Tuval Sayfası, Resim çizme Sayfası** için geçici (temp) arayüzler oluşturuldu.
+  - **Yapay Zeka ile resim üretim Sayfası, Profil Sayfası ve Resim Üretme Sayfası** için geçici (temp) arayüzler oluşturuldu.    
 
-   ```bash
-   npm install
-   ```
+## 📌 Proje İlerleme Durumu – 2. Hafta  
 
-2. Start the app
+İkinci hafta kapsamında aşağıdaki geliştirmeler tamamlanmıştır:  
 
-   ```bash
-    npx expo start
-   ```
+- **Canvas Sayfası:** Canvas Sayfası optimal bir şekilde çalışması sağlandı.
+- **Aİ Üretim ve Profil Sayfası:** Diğer sayfaların düzeninde yenilemeye gidildi.
+- **Canvas Sayfası Ek yapılar:** Resim çizmek için farklı secenekler ve düzenlemeler eklendi mobil ve web için kontroller sağlandı.
+- **Fire Base:** Resim yükleme için yapılar oluşturuldu.
 
-In the output, you'll find options to open the app in a
+<img src="assets/images/1.HaftaWeb.gif" width="1000" height="500" alt="Proje Demo GIF'i">
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+<img src="assets/images/1.Hafta.gif" width="500" height="1000" alt="Proje Demo GIF'i">
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
