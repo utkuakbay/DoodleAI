@@ -28,6 +28,13 @@
 * **Fire Base:** Resimlerin kayıtları sağlandı rulesler düzenlendi.
 * **Profil:** Girilen hesabın kişisel profil sayfası düzenlendi ve geliştirildi çizilen resimler burada sergilenmeye başlandı.
 
+## 📌 Proje İlerleme Durumu – 4. Hafta  
+
+Dördüncü hafta kapsamında aşağıdaki geliştirmeler tamamlanmıştır:  
+
+* **APİ Araştırması:** Çeşitli görsel üretme apileri denenmiş ve sonuçlar karşılaştırılmıştır.
+* **Generating Sayfası:** Resim üretileceği ve görsel sunulacağı sayfalar düzenlendi.
+
 <img src="assets/images/Mobil.gif" width="500" height="1000" alt="Proje Demo GIF'i">
 
 <img src="assets/images/1.HaftaWeb.gif" width="1000" height="500" alt="Proje Demo GIF'i">
