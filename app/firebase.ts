@@ -8,13 +8,13 @@ import { getDatabase } from "firebase/database";
 // NOT: Bu bilgileri Firebase konsolundan projeniz için almalısınız
 const firebaseConfig = {
   apiKey: "api-key",
-  authDomain: "doodleai-eaede.firebaseapp.com",
+  authDomain: "-",
   databaseURL: "api-key",
   projectId: "api-key",
   storageBucket: "api-key",
-  messagingSenderId: "32539666154",
+  messagingSenderId: "-",
   appId: "api-key",
-  measurementId: "G-1G8CXMQEP8"
+  measurementId: "-"
 };
 
 // Firebase uygulamasını başlat
