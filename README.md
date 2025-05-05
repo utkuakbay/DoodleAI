@@ -35,6 +35,14 @@ Dördüncü hafta kapsamında aşağıdaki geliştirmeler tamamlanmıştır:
 * **APİ Araştırması:** Çeşitli görsel üretme apileri denenmiş ve sonuçlar karşılaştırılmıştır.
 * **Generating Sayfası:** Resim üretileceği ve görsel sunulacağı sayfalar düzenlendi.
 
+## 📌 Proje İlerleme Durumu – 5. Hafta  
+
+Dördüncü hafta kapsamında aşağıdaki geliştirmeler tamamlanmıştır:  
+
+* **APİ Entegrasyonu:** Api ile görsel üretme sayfası tamamlandı ve sorunsuz şekilde çalışıyor.
+* **Generating Sayfası:** Resim üretimi başarıyla yapıldı ve kayıt işlemleri eklendi.
+* **Generating Sayfası:** SDK53 hataları çözüldü ve sürüm hataları giderildi.
+
 <img src="assets/images/Mobil.gif" width="500" height="1000" alt="Proje Demo GIF'i">
 
 <img src="assets/images/1.HaftaWeb.gif" width="1000" height="500" alt="Proje Demo GIF'i">
