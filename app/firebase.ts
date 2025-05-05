@@ -9,6 +9,7 @@ import { Platform } from "react-native";
 
 // Firebase yapılandırma bilgileri
 const firebaseConfig = {
+<<<<<<< HEAD
   apiKey: "AIzaSyAgyoyy5DhSK3om70_SOxHhnUPFtHBx3jE",
   authDomain: "doodleai-eaede.firebaseapp.com",
   databaseURL: "https://doodleai-eaede-default-rtdb.europe-west1.firebasedatabase.app",
@@ -17,6 +18,16 @@ const firebaseConfig = {
   messagingSenderId: "32539666154",
   appId: "1:32539666154:web:ddb97af73d5e6da6c75993",
   measurementId: "G-1G8CXMQEP8"
+=======
+  apiKey: "api-key",
+  authDomain: "-",
+  databaseURL: "api-key",
+  projectId: "api-key",
+  storageBucket: "api-key",
+  messagingSenderId: "-",
+  appId: "api-key",
+  measurementId: "-"
+>>>>>>> 240b464137e9b849663a126ad8824a103b7f970a
 };
 
 // Firebase uygulamasını başlat
