@@ -19,12 +19,41 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { useColorScheme } from 'react-native';
+import { router } from 'expo-router';
 import { signOut } from 'firebase/auth';
 import { auth, rtdb, db } from '../firebase';
-import { router } from 'expo-router';
 import { ref, onValue, remove } from 'firebase/database';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
+// Test verilerini kullan
+const mockUserData = {
+  username: 'testuser',
+  email: 'test@example.com',
+  fullName: 'Test Kullanıcı',
+  bio: 'Dijital sanat ve resim çizmeyi seviyorum. Yeni teknolojileri denemeyi ve yaratıcı işler üretmeyi seviyorum.',
+  profileImage: 'https://picsum.photos/200',
+  createdArtworks: 5,
+  favoriteStyle: 'Empresyonizm',
+};
+
+const mockDrawings = [
+  {
+    id: '1',
+    userId: '1',
+    imageData: 'https://picsum.photos/200/300',
+    title: 'Test Çizim 1',
+    createdAt: Date.now() - 86400000
+  },
+  {
+    id: '2',
+    userId: '1',
+    imageData: 'https://picsum.photos/200/300',
+    title: 'Test Çizim 2',
+    createdAt: Date.now()
+  }
+];
+
+// Tip tanımlamalarını geri ekle
 interface UserData {
   username: string;
   email: string;
@@ -43,7 +72,7 @@ interface SavedDrawing {
   createdAt: number;
 }
 
-export default function ProfileScreen() {
+function ProfileScreen() {
   const colorScheme = useColorScheme() || 'light';
   const isDark = colorScheme === 'dark';
 
@@ -77,15 +106,15 @@ export default function ProfileScreen() {
   // Kullanıcı verilerini ve çizimlerini yükle
   useEffect(() => {
     const loadUserData = async () => {
-      const currentUser = auth.currentUser;
-      if (!currentUser) {
-        setIsLoading(false);
-        setIsUserDataLoading(false);
-        return;
-      }
-
-      // Kullanıcı bilgilerini ayarla
       try {
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+          setIsLoading(false);
+          setIsUserDataLoading(false);
+          return;
+        }
+
+        // Kullanıcı bilgilerini ayarla
         setIsUserDataLoading(true);
         
         // Firestore'dan kullanıcı bilgilerini al
@@ -253,24 +282,18 @@ export default function ProfileScreen() {
       };
       
       // Firestore'a güncelleme
-      try {
-        await setDoc(userDocRef, updatedUserData, { merge: true });
-        
-        // Kullanıcı verilerini güncelle
-        setUserData(updatedUserData);
-        
-        Alert.alert('Başarılı', 'Profil bilgileri başarıyla güncellendi.');
-        setIsEditing(false);
-      } catch (error) {
-        console.error('Profil güncelleme hatası:', error);
-        Alert.alert('Hata', 'Profil güncellenirken bir sorun oluştu. Daha sonra tekrar deneyin.');
-      }
+      await setDoc(userDocRef, updatedUserData, { merge: true });
       
-      setIsSavingProfile(false);
+      // Kullanıcı verilerini güncelle
+      setUserData(updatedUserData);
+      
+      Alert.alert('Başarılı', 'Profil bilgileri başarıyla güncellendi.');
+      setIsEditing(false);
     } catch (error) {
-      setIsSavingProfile(false);
       console.error('Profil güncelleme hatası:', error);
       Alert.alert('Hata', 'Profil güncellenirken bir sorun oluştu.');
+    } finally {
+      setIsSavingProfile(false);
     }
   };
 
@@ -708,6 +731,8 @@ export default function ProfileScreen() {
     </SafeAreaView>
   );
 }
+
+export default ProfileScreen;
 
 const styles = StyleSheet.create({
   container: {

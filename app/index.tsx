@@ -5,13 +5,17 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { auth } from './firebase';
 
-export default function IndexScreen() {
-  // Kullanıcı oturum durumunu kontrol et
+function Index() {
+  // Kullanıcı oturum durumunu kontrolünü geri ekledik
   useEffect(() => {
     const checkAuthState = () => {
-      // Mevcut oturum varsa ana sayfaya yönlendir
-      if (auth.currentUser) {
-        router.replace('/(tabs)');
+      try {
+        // Mevcut oturum varsa ana sayfaya yönlendir
+        if (auth.currentUser) {
+          router.replace('/(tabs)');
+        }
+      } catch (err) {
+        console.error("Auth kontrol hatası:", err);
       }
     };
     
@@ -46,6 +50,8 @@ export default function IndexScreen() {
     </View>
   );
 }
+
+export default Index;
 
 const styles = StyleSheet.create({
   container: {

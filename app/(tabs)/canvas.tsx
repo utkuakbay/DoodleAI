@@ -19,10 +19,10 @@ import { StatusBar } from 'expo-status-bar';
 import { MaterialCommunityIcons, Ionicons, FontAwesome5, AntDesign } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { useColorScheme } from 'react-native';
-import { ref, set, push } from 'firebase/database';
-import { rtdb, auth } from '../firebase';
 import { captureRef } from 'react-native-view-shot';
 import * as FileSystem from 'expo-file-system';
+import { ref, set } from 'firebase/database';
+import { rtdb, auth } from '../firebase';
 
 interface Point {
   x: number;
@@ -598,10 +598,10 @@ export default function CanvasScreen() {
       };
 
       // Realtime Database'de referans oluştur
-      const drawingsRef = ref(rtdb, `drawings/${currentUser.uid}/${newDrawing.id}`);
+      const drawingRef = ref(rtdb, `drawings/${currentUser.uid}/${newDrawing.id}`);
       
       // Veriyi kaydet
-      await set(drawingsRef, newDrawing);
+      await set(drawingRef, newDrawing);
 
       Alert.alert('Başarılı', 'Çiziminiz başarıyla kaydedildi. Profil sayfanızdan görüntüleyebilirsiniz.');
       

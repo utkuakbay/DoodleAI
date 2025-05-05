@@ -11,13 +11,14 @@ import {
   ScrollView
 } from 'react-native';
 import { Link, router } from 'expo-router';
+// Firebase importları
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { StatusBar } from 'expo-status-bar';
 import { Colors } from '../../constants/Colors';
 
-export default function RegisterScreen() {
+function RegisterScreen() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -188,6 +189,8 @@ export default function RegisterScreen() {
     </KeyboardAvoidingView>
   );
 }
+
+export default RegisterScreen;
 
 const styles = StyleSheet.create({
   container: {

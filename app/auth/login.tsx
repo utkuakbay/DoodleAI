@@ -17,7 +17,7 @@ import { auth } from '../firebase';
 import { StatusBar } from 'expo-status-bar';
 import { Colors } from '../../constants/Colors';
 
-export default function LoginScreen() {
+function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -41,6 +41,7 @@ export default function LoginScreen() {
       
       // Başarılı giriş sonrası ana sayfaya yönlendir
       router.replace('/(tabs)');
+        
     } catch (error: any) {
       // Hata işleme
       console.error("Giriş hatası:", error);
@@ -135,6 +136,8 @@ export default function LoginScreen() {
     </KeyboardAvoidingView>
   );
 }
+
+export default LoginScreen;
 
 const styles = StyleSheet.create({
   container: {

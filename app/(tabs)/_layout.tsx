@@ -24,7 +24,7 @@ function MCIcon(props: {
   return <MaterialCommunityIcons size={24} style={{ marginBottom: -3 }} {...props} />;
 }
 
-export default function TabLayout() {
+function TabsLayout() {
   const colorScheme = useColorScheme();
 
   return (
@@ -75,3 +75,5 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+export default TabsLayout;

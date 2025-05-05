@@ -24,7 +24,7 @@ export const unstable_settings = {
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
+function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
@@ -43,14 +43,17 @@ export default function RootLayout() {
   }, [loaded]);
 
   useEffect(() => {
-    // Oturum durumu değiştiğinde tetiklenir
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      // Durumun başlatılması tamamlandı
+    try {
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        setInitializing(false);
+      });
+      
+      return () => unsubscribe();
+    } catch (err) {
+      console.error("Auth hata:", err);
       setInitializing(false);
-    });
-    
-    // Temizlik fonksiyonu
-    return () => unsubscribe();
+      return () => {};
+    }
   }, []);
 
   if (!loaded || initializing) {
@@ -79,3 +82,5 @@ function RootLayoutNav() {
     </GestureHandlerRootView>
   );
 }
+
+export default RootLayout;
