@@ -37,7 +37,7 @@ Dördüncü hafta kapsamında aşağıdaki geliştirmeler tamamlanmıştır:
 
 ## 📌 Proje İlerleme Durumu – 5. Hafta  
 
-Dördüncü hafta kapsamında aşağıdaki geliştirmeler tamamlanmıştır:  
+Beşinci hafta kapsamında aşağıdaki geliştirmeler tamamlanmıştır:  
 
 * **APİ Entegrasyonu:** Api ile görsel üretme sayfası tamamlandı ve sorunsuz şekilde çalışıyor.
 * **Generating Sayfası:** Resim üretimi başarıyla yapıldı ve kayıt işlemleri eklendi.
