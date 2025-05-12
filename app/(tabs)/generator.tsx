@@ -10,12 +10,25 @@ import {
   KeyboardAvoidingView, 
   Platform,
   ScrollView,
-  SafeAreaView
+  SafeAreaView,
+  Alert
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { useColorScheme } from 'react-native';
+import { ref, set } from 'firebase/database';
+import { rtdb, auth } from '../firebase';
+import * as FileSystem from 'expo-file-system';
+
+// SavedDrawing arayüzü tanımlama
+interface SavedDrawing {
+  id: string;
+  userId: string;
+  imageData: string; // base64 formatında resim verisi
+  title: string;
+  createdAt: number;
+}
 
 export default function GeneratorScreen() {
   const colorScheme = useColorScheme();
@@ -23,6 +36,12 @@ export default function GeneratorScreen() {
   const [loading, setLoading] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [history, setHistory] = useState<{prompt: string, image: string}[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Rastgele benzersiz id oluşturucu
+  const generateUniqueId = () => {
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  };
 
   // Pollinations.ai API ile görüntü üretimi
   const generateImage = () => {
@@ -41,6 +60,80 @@ export default function GeneratorScreen() {
       setHistory(prev => [{prompt, image: imageUrl}, ...prev].slice(0, 10));
       setLoading(false);
     }, 500); // Kısa bir bekleme ekledik (isteğe bağlı)
+  };
+
+  // Görüntüyü base64'e dönüştürme ve kaydetme
+  const saveImageAsBase64 = async (imageUrl: string) => {
+    try {
+      // Görüntüyü indirip base64'e çevir
+      const fileUri = await FileSystem.downloadAsync(
+        imageUrl,
+        FileSystem.cacheDirectory + 'temp_image.jpg'
+      );
+      
+      // Dosyayı base64'e dönüştür
+      const base64Data = await FileSystem.readAsStringAsync(fileUri.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      return `data:image/jpeg;base64,${base64Data}`;
+    } catch (error) {
+      console.error('Görüntü dönüştürme hatası:', error);
+      Alert.alert('Hata', 'Görsel kaydedilemedi. Lütfen tekrar deneyin.');
+      return null;
+    }
+  };
+
+  // Üretilen görüntüyü Firebase'e kaydetme
+  const saveGeneratedImageToFirebase = async () => {
+    // Kullanıcı giriş yapmış mı kontrol et
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      Alert.alert('Oturum Hatası', 'Görsel kaydetmek için giriş yapmalısınız.');
+      return;
+    }
+
+    // Eğer üretilen görsel yoksa uyarı ver
+    if (!generatedImage) {
+      Alert.alert('Uyarı', 'Kaydedilecek bir görsel bulunamadı. Lütfen önce bir görsel üretin.');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+
+      // Görüntüyü base64 olarak al
+      const imageData = await saveImageAsBase64(generatedImage);
+      if (!imageData) {
+        setIsSaving(false);
+        return;
+      }
+
+      // Çizim için otomatik başlık oluştur (isteğe bağlı olarak kullanıcıdan alınabilir)
+      const drawingTitle = `AI Görsel_${prompt.substring(0, 20)}...`;
+
+      // Yeni bir çizim verisi oluştur
+      const newDrawing: SavedDrawing = {
+        id: generateUniqueId(),
+        userId: currentUser.uid,
+        imageData: imageData,
+        title: drawingTitle,
+        createdAt: Date.now()
+      };
+
+      // Realtime Database'de referans oluştur
+      const drawingRef = ref(rtdb, `drawings/${currentUser.uid}/${newDrawing.id}`);
+      
+      // Veriyi kaydet
+      await set(drawingRef, newDrawing);
+
+      Alert.alert('Başarılı', 'Görsel başarıyla kaydedildi. Profil sayfanızdan görüntüleyebilirsiniz.');
+    } catch (error) {
+      console.error('Firebase kayıt hatası:', error);
+      Alert.alert('Hata', 'Görsel kaydedilemedi. Lütfen tekrar deneyin.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -138,6 +231,22 @@ export default function GeneratorScreen() {
                   {prompt}
                 </Text>
               </View>
+
+              {/* Kaydet butonu */}
+              <TouchableOpacity 
+                style={styles.saveButton} 
+                onPress={saveGeneratedImageToFirebase}
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="save-outline" size={22} color="#fff" />
+                    <Text style={styles.saveButtonText}>Galeriye Kaydet</Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
           ) : null}
 
@@ -251,8 +360,9 @@ const styles = StyleSheet.create({
   },
   promptPreview: {
     padding: 12,
+    backgroundColor: 'rgba(0,0,0,0.05)',
     borderRadius: 8,
-    backgroundColor: 'rgba(108, 92, 231, 0.1)',
+    marginBottom: 15,
   },
   promptText: {
     fontSize: 14,
@@ -269,15 +379,33 @@ const styles = StyleSheet.create({
   historyItem: {
     width: 150,
     marginRight: 15,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#f5f5f5',
   },
   historyImage: {
     width: 150,
     height: 150,
-    borderRadius: 8,
-    marginBottom: 8,
   },
   historyPrompt: {
+    padding: 8,
     fontSize: 12,
-    color: '#718096',
+    color: '#333',
+  },
+  // Kaydet butonu stilleri
+  saveButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
   },
 }); 
