@@ -43,6 +43,14 @@ Beşinci hafta kapsamında aşağıdaki geliştirmeler tamamlanmıştır:
 * **Generating Sayfası:** Resim üretimi başarıyla yapıldı ve kayıt işlemleri eklendi.
 * **Generating Sayfası:** SDK53 hataları çözüldü ve sürüm hataları giderildi.
 
+## 📌 Proje İlerleme Durumu – 6. Hafta  
+
+Altıncı hafta kapsamında aşağıdaki geliştirmeler tamamlanmıştır:  
+
+* **Firebase Entegrasyonu:** Firebase için keşfet sayfası özellikleri eklendi ve denendi.
+* **Generating Sayfası:** RGerekli düzenlemeler yapıldı.
+* **Explore Sayfası:** Keşfet sayfası oluşturuldu ve fonksiyonlar eklendi.
+
 <img src="assets/images/Mobil.gif" width="500" height="1000" alt="Proje Demo GIF'i">
 
 <img src="assets/images/1.HaftaWeb.gif" width="1000" height="500" alt="Proje Demo GIF'i">
