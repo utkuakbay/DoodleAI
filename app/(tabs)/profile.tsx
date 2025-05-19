@@ -263,39 +263,6 @@ function ProfileScreen() {
     setIsEditing(false);
   };
   
-  // Profil bilgilerini kaydet
-  const saveProfile = async () => {
-    try {
-      const currentUser = auth.currentUser;
-      if (!currentUser) return;
-      
-      setIsSavingProfile(true);
-      
-      // Firestore'da kullanıcı bilgilerini güncelle
-      const userDocRef = doc(db, "users", currentUser.uid);
-      
-      // Mevcut kullanıcı bilgileriyle değiştirilenleri birleştir
-      const updatedUserData = {
-        ...userData,
-        fullName: editedUserData.fullName,
-        bio: editedUserData.bio,
-      };
-      
-      // Firestore'a güncelleme
-      await setDoc(userDocRef, updatedUserData, { merge: true });
-      
-      // Kullanıcı verilerini güncelle
-      setUserData(updatedUserData);
-      
-      Alert.alert('Başarılı', 'Profil bilgileri başarıyla güncellendi.');
-      setIsEditing(false);
-    } catch (error) {
-      console.error('Profil güncelleme hatası:', error);
-      Alert.alert('Hata', 'Profil güncellenirken bir sorun oluştu.');
-    } finally {
-      setIsSavingProfile(false);
-    }
-  };
 
   // Çizim detayları modal'ı
   const renderDrawingModal = () => {
