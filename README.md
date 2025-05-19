@@ -53,7 +53,7 @@ Altıncı hafta kapsamında aşağıdaki geliştirmeler tamamlanmıştır:
 
 ## 📌 Proje İlerleme Durumu – 7. Hafta  
 
-Yedinci hafta kapsamında aşağıdaki geliştirmeler tamamlanmıştır:  
+Yedinci hafta kapsamında aşağıdaki geliştirmeler tamamlanmıştır :  
 
 * **Profil Sayfası:** Kullanıcıların paylaştığı içerikler profillerinde listelendi.
 * **Explore Sayfası:** Çalışma mekanizması optimizasyonu yapıldı.
