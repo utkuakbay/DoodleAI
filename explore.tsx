@@ -105,115 +105,121 @@ export default function ExploreScreen() {
     fetchImages();
   }, [sortBy, initialSetupDone]);
   
-  const fetchImages = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      console.log('Keşfet sayfası: Resimler yükleniyor...');
-      
-      // Firebase koleksiyonlarını kontrol et ve veri ekle
-      if (!initialSetupDone && auth.currentUser) {
-        try {
-          await setupFirestoreCollections();
-          setInitialSetupDone(true);
-        } catch (error) {
-          console.error('Firestore kurulum hatası:', error);
-          // Kurulum hatası olsa bile devam et
-        }
-      }
-      
-      let imagesData: ImageItem[] = [];
-      
+const fetchImages = async () => {
+  try {
+    setLoading(true);
+    setError(null);
+    console.log('Keşfet sayfası: Resimler yükleniyor...');
+
+    if (!initialSetupDone && auth.currentUser) {
       try {
-        // Firestore'dan resimleri çek
-        const imagesRef = collection(db, 'images');
-        let q;
-        
-        try {
-          q = query(
-            imagesRef,
-            sortBy === 'popular' ? orderBy('upvotes', 'desc') : orderBy('createdAt', 'desc'),
-            limit(50)
-          );
-        } catch (queryError) {
-          console.error('Sorgu oluşturma hatası:', queryError);
-          // Basit sorgu yap
-          q = query(imagesRef, limit(50));
+        await setupFirestoreCollections();
+        setInitialSetupDone(true);
+      } catch (error) {
+        console.error('Firestore kurulum hatası:', error);
+      }
+    }
+
+    const imagesRef = collection(db, 'images');
+    let q;
+
+    try {
+      q = query(
+        imagesRef,
+        sortBy === 'popular' ? orderBy('upvotes', 'desc') : orderBy('createdAt', 'desc'),
+        limit(50)
+      );
+    } catch (queryError) {
+      console.error('Sorgu oluşturma hatası:', queryError);
+      q = query(imagesRef, limit(50));
+    }
+
+    const querySnapshot = await getDocs(q);
+    if (querySnapshot.empty && auth.currentUser) {
+      console.log('Veri bulunamadı, örnek veri ekleniyor...');
+      const demoImageId = `demo-image-${Date.now()}`;
+      await setDoc(doc(db, 'images', demoImageId), {
+        id: demoImageId,
+        userId: auth.currentUser.uid,
+        title: 'Örnek Çizim',
+        imageURL: 'https://picsum.photos/400/300',
+        type: 'canvas',
+        createdAt: Date.now(),
+        upvotes: 0,
+        downvotes: 0
+      });
+      // Tekrar deneme
+      const retrySnapshot = await getDocs(q);
+      if (retrySnapshot.empty) {
+        setError('Resim verisi bulunamadı.');
+        setImages([]);
+        return;
+      }
+    }
+
+    const currentUser = auth.currentUser;
+    let userVotes: { [key: string]: 'up' | 'down' } = {};
+
+    if (currentUser) {
+      try {
+        const votesRef = collection(db, 'votes');
+        const userVotesQuery = query(
+          votesRef,
+          where('userId', '==', currentUser.uid)
+        );
+        const votesSnapshot = await getDocs(userVotesQuery);
+        votesSnapshot.forEach((voteDoc) => {
+          const voteData = voteDoc.data() as Vote;
+          userVotes[voteData.imageId] = voteData.voteType;
+        });
+      } catch (votesError) {
+        console.warn('Oy verileri alınamadı:', votesError);
+      }
+    }
+
+    const processedImages: ImageItem[] = [];
+    for (const docSnap of querySnapshot.docs) {
+      const imageData = docSnap.data();
+      let username = 'Kullanıcı';
+
+      try {
+        const userDoc = await getDoc(doc(db, 'users', imageData.userId || 'unknown'));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          username = userData.username || userData.fullName || 'Kullanıcı';
         }
-        
-        const querySnapshot = await getDocs(q);
-        console.log('Keşfet sayfası: Firestore sorgusu başarılı. Resim sayısı:', querySnapshot.size);
-        
-        if (querySnapshot.empty) {
-          console.log('Resim bulunamadı, örnek veri ekleniyor...');
-          try {
-            // Firestore koleksiyonlarını tekrar kontrol et, örnek veri ekle
-            await setupFirestoreCollections();
-            // Koleksiyonları yeniden sorgula
-            const refreshSnapshot = await getDocs(q);
-            if (refreshSnapshot.empty) {
-              // Yine de boşsa ve kullanıcı girişi varsa, basit örnek veri ekle
-              if (auth.currentUser) {
-                const demoImageId = `demo-image-${Date.now()}`;
-                await setDoc(doc(db, 'images', demoImageId), {
-                  id: demoImageId,
-                  userId: auth.currentUser.uid,
-                  title: 'Örnek Çizim',
-                  imageURL: 'https://picsum.photos/400/300',
-                  type: 'canvas',
-                  createdAt: Date.now(),
-                  upvotes: 0,
-                  downvotes: 0
-                });
-                console.log('Örnek resim başarıyla eklendi, sayfayı yenileyiniz.');
-              }
-            }
-          } catch (setupError) {
-            console.error('Örnek veri ekleme hatası:', setupError);
-          }
-        }
-        
-        // Kullanıcı giriş yapmış mı kontrol et
-        const currentUser = auth.currentUser;
-        
-        // Kullanıcı oylarını getir (eğer kullanıcı giriş yapmışsa)
-        let userVotes: {[key: string]: 'up' | 'down'} = {};
-        
-        if (currentUser) {
-          try {
-            // Votes koleksiyonu varlığından emin ol
-            try {
-              const votesRef = collection(db, 'votes');
-              const votesCheck = query(votesRef, limit(1));
-              await getDocs(votesCheck);
-            } catch (votesError) {
-              console.log('Votes koleksiyonu oluşturuluyor...');
-              // Koleksiyon henüz yok, ilk dokümanı oluştur
-              const votesRef = collection(db, 'votes');
-              await setDoc(doc(votesRef, 'init'), {
-                init: true,
-                createdAt: Date.now()
-              });
-            }
-            
-            // Şimdi kullanıcının oylarını getir
-            const votesRef = collection(db, 'votes');
-            const userVotesQuery = query(
-              votesRef,
-              where('userId', '==', currentUser.uid)
-            );
-            
-            const votesSnapshot = await getDocs(userVotesQuery);
-            votesSnapshot.forEach((voteDoc) => {
-              const voteData = voteDoc.data() as Vote;
-              userVotes[voteData.imageId] = voteData.voteType;
-            });
-            
-            console.log('Keşfet sayfası: Kullanıcı oyları yüklendi.');
-          } catch (votesError) {
-            console.log('Keşfet sayfası: Oylar yüklenemedi:', votesError);
-            // Oyları alma hatası, devam et
-          }
+      } catch (userError) {
+        console.warn('Kullanıcı bilgisi alınamadı:', userError);
+      }
+
+      const imageURL = imageData.imageURL || imageData.imageData || 'https://picsum.photos/400/300';
+
+      processedImages.push({
+        id: docSnap.id,
+        userId: imageData.userId || 'unknown',
+        imageURL,
+        title: imageData.title || 'İsimsiz Resim',
+        createdAt: imageData.createdAt || 0,
+        type: imageData.type || 'canvas',
+        username,
+        upvotes: imageData.upvotes || 0,
+        downvotes: imageData.downvotes || 0,
+        userVote: currentUser ? userVotes[docSnap.id] || null : null
+      });
+    }
+
+    setImages(processedImages);
+    setError(null);
+  } catch (firestoreError) {
+    console.error('Resim verileri alınırken hata oluştu:', firestoreError);
+    setError('Resim verileri alınırken bir hata oluştu.');
+    setImages([]);
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+};
+
         }
         
         // Resim verilerini düzenle
