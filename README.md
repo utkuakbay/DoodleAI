@@ -48,8 +48,15 @@ Beşinci hafta kapsamında aşağıdaki geliştirmeler tamamlanmıştır:
 Altıncı hafta kapsamında aşağıdaki geliştirmeler tamamlanmıştır:  
 
 * **Firebase Entegrasyonu:** Firebase için keşfet sayfası özellikleri eklendi ve denendi.
-* **Generating Sayfası:** RGerekli düzenlemeler yapıldı.
+* **Generating Sayfası:** Gerekli düzenlemeler yapıldı.
 * **Explore Sayfası:** Keşfet sayfası oluşturuldu ve fonksiyonlar eklendi.
+
+## 📌 Proje İlerleme Durumu – 7. Hafta  
+
+Yedinci hafta kapsamında aşağıdaki geliştirmeler tamamlanmıştır:  
+
+* **Keşfet Sayfası:** Kullanıcıların paylaştığı içerikler profillerinde listelendi.
+* **Explore Sayfası:** Çalışma mekanizması optimizasyonu yapıldı.
 
 <img src="assets/images/Mobil.gif" width="500" height="1000" alt="Proje Demo GIF'i">
 
