@@ -22,7 +22,9 @@ import { useColorScheme } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import * as FileSystem from 'expo-file-system';
 import { ref, set } from 'firebase/database';
-import { rtdb, auth } from '../firebase';
+import { rtdb, auth, db } from '../firebase';
+import { collection, addDoc, doc, setDoc } from 'firebase/firestore';
+import { useTheme } from '../../context/ThemeContext';
 
 interface Point {
   x: number;
@@ -48,8 +50,8 @@ interface SavedDrawing {
 type ToolType = 'pen' | 'square' | 'circle' | 'triangle' | 'line' | 'eraser';
 
 export default function CanvasScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const canvasRef = useRef<View>(null);
   const [paths, setPaths] = useState<Path[]>([]);
   const [currentPath, setCurrentPath] = useState<Point[]>([]);
@@ -130,14 +132,13 @@ export default function CanvasScreen() {
       Math.pow(point2.x - point1.x, 2) + Math.pow(point2.y - point1.y, 2)
     );
     
-    // Noktalar çok yakınsa, sadece ikinci noktayı döndür
-    if (distance < 4) return [point2];
+    if (distance < 2) return [point2];
     
     const points: Point[] = [];
     
-    // Platform bazlı nokta sayısı optimizasyonu
-    const maxSteps = Platform.OS === 'web' ? 4 : 2;
-    const stepSize = Platform.OS === 'web' ? 8 : 12;
+    // Mobilde daha sık nokta
+    const maxSteps = Platform.OS === 'web' ? 4 : 6;
+    const stepSize = Platform.OS === 'web' ? 8 : 4;
     
     const steps = Math.min(Math.floor(distance / stepSize), maxSteps);
     
@@ -291,28 +292,23 @@ export default function CanvasScreen() {
   }, [renderSegment]);
   
   const renderPath = useCallback((path: Path, key: number | string) => {
-    const { type } = path;
-    
-    // Şekiller için özel render fonksiyonu
+    const { type, color, strokeWidth } = path;
+    const isEraser = type === 'freehand' && color === '#FFFFFF';
+    const drawColor = isEraser ? '#FFFFFF' : color;
+    const drawWidth = isEraser ? strokeWidth : strokeWidth;
     if (type !== 'freehand') {
       return renderShape(path, `shape-${path.id || key}`);
     }
-    
-    // Serbest çizim için segment render
     const segments = [];
-    const { points, color, strokeWidth } = path;
-    
+    const { points } = path;
     if (points.length < 2) return null;
-    
     for (let i = 1; i < points.length; i++) {
       const start = points[i - 1];
       const end = points[i];
-      
       segments.push(
-        renderSegment(start, end, color, strokeWidth, `segment-${path.id || key}-${i}`)
+        renderSegment(start, end, drawColor, drawWidth, `segment-${path.id || key}-${i}`)
       );
     }
-    
     return segments;
   }, [renderSegment, renderShape]);
 
@@ -373,41 +369,8 @@ export default function CanvasScreen() {
   // Mobil hassasiyeti için koordinat hesaplama
   const getCanvasCoordinates = useCallback((evt: GestureResponderEvent) => {
     const { nativeEvent } = evt;
-    
-    if (Platform.OS === 'web') {
-      return { x: nativeEvent.locationX, y: nativeEvent.locationY };
-    } else {
-      try {
-        const { pageX, pageY } = nativeEvent;
-        
-        if (!canvasRef.current) return null;
-        
-        const canvasX = canvasLayout.current.x || 0;
-        const canvasY = canvasLayout.current.y || 0;
-        
-        // Daha hassas mobil offset hesaplaması
-        const offsetY = 60;
-        const offsetX = 0; // Yatay offset gerekirse
-        
-        const x = pageX - canvasX + offsetX;
-        const y = pageY - canvasY - offsetY;
-        
-        // Canvas içinde mi kontrolü
-        const isInsideCanvas = 
-          x >= 0 && 
-          y >= 0 && 
-          x <= canvasLayout.current.width && 
-          y <= canvasLayout.current.height;
-          
-        if (isInsideCanvas) {
-          return { x, y };
-        } 
-        return null;
-      } catch (error) {
-        console.error('Koordinat hatası:', error);
-        return null;
-      }
-    }
+    // Hem web hem mobilde locationX/locationY kullan
+    return { x: nativeEvent.locationX, y: nativeEvent.locationY };
   }, []);
 
   // PanResponder - Çizgi çekme ve silgi iyileştirmeleri
@@ -420,93 +383,83 @@ export default function CanvasScreen() {
     onPanResponderGrant: (evt) => {
       const point = getCanvasCoordinates(evt);
       if (!point) return;
-      
-      // Çizim başlatıldı
       isDrawing.current = true;
       startPoint.current = point;
-      
-      // Silgiyse silmeye başla, değilse çizime başla
-      if (currentTool === 'eraser') {
-        eraseNearPoint(point);
-        // Silgi izi göster
-        setCurrentPath([point]);
-      } else {
-        setCurrentPath([point]);
-      }
+      setCurrentPath([point]);
     },
     
     // Dokunuş hareketi
     onPanResponderMove: (evt, gestureState) => {
       if (!isDrawing.current || !startPoint.current) return;
-      
-      // Performans için throttling
+      // Eğer startPoint 0,0 ise, ignore et (silgi hariç)
+      if (startPoint.current.x === 0 && startPoint.current.y === 0 && currentTool !== 'eraser') return;
       const now = Date.now();
-      const throttleTime = Platform.OS === 'web' ? 16 : 48; // Web: 60fps, Mobil: ~20fps
+      const throttleTime = Platform.OS === 'web' ? 16 : 24;
       if (now - lastDrawTime < throttleTime) return;
       setLastDrawTime(now);
-      
       const point = getCanvasCoordinates(evt);
       if (!point) return;
-      
       if (currentTool === 'eraser') {
-        // Silgi için işlem
-        eraseNearPoint(point);
         setCurrentPath(prevPath => [...prevPath, point]);
-      } 
-      else if (currentTool === 'pen') {
-        // Kalem için işlem - optimizasyon
-        const skipFactor = Platform.OS === 'web' ? 1 : 3;
+        startPoint.current = point;
+      } else if (currentTool === 'pen') {
+        const skipFactor = 1;
         const smoothPoints = smoothLine(startPoint.current, point);
         const pointsToAdd = smoothPoints.filter((_, i) => i % skipFactor === 0 || i === smoothPoints.length - 1);
-        
         setCurrentPath(prevPoints => [...prevPoints, ...pointsToAdd]);
         startPoint.current = point;
-      } 
-      else {
-        // Tüm şekiller için başlangıç-bitiş modeli
+      } else {
         setCurrentPath([startPoint.current, point]);
       }
     },
     
     // Dokunuş sonu
     onPanResponderRelease: (evt) => {
-      if (!isDrawing.current) return;
-      
-      isDrawing.current = false;
-      
-      if (currentTool === 'eraser') {
-        // Silgi izi temizle
+      if (!isDrawing.current) {
         setCurrentPath([]);
         startPoint.current = null;
+        isDrawing.current = false;
         return;
       }
-      
-      // Diğer araçlar için yolu ekle
-      if (currentPath.length > 1) {
-        const newPath: Path = {
-          points: [...currentPath],
-          color: currentColor,
-          strokeWidth: brushSize,
-          type: currentTool === 'pen' ? 'freehand' : currentTool,
-          id: generateUniqueId()
-        };
-        
-        // Yeni yolu ekle
-        setPaths(prevPaths => [...prevPaths, newPath]);
-        
-        // Geçici çizim temizle
-        setCurrentPath([]);
+      if (currentTool === 'pen' || currentTool === 'eraser') {
+        if (currentPath.length > 1 && !(currentPath[0].x === 0 && currentPath[0].y === 0)) {
+          const newPath: Path = {
+            points: [...currentPath],
+            color: currentTool === 'eraser' ? '#FFFFFF' : currentColor,
+            strokeWidth: currentTool === 'eraser' ? brushSize * 4 : brushSize,
+            type: 'freehand',
+            id: generateUniqueId()
+          };
+          setPaths(prevPaths => [...prevPaths, newPath]);
+        }
+      } else {
+        if (
+          currentPath.length === 2 &&
+          (currentPath[0].x !== currentPath[1].x || currentPath[0].y !== currentPath[1].y) &&
+          !(currentPath[0].x === 0 && currentPath[0].y === 0)
+        ) {
+          const newPath: Path = {
+            points: [...currentPath],
+            color: currentColor,
+            strokeWidth: brushSize,
+            type: currentTool,
+            id: generateUniqueId()
+          };
+          setPaths(prevPaths => [...prevPaths, newPath]);
+        }
       }
-      
+      setCurrentPath([]);
       startPoint.current = null;
+      isDrawing.current = false;
     },
     
     // İptal
     onPanResponderTerminate: () => {
-      isDrawing.current = false;
-      startPoint.current = null;
       setCurrentPath([]);
-    }
+      startPoint.current = null;
+      isDrawing.current = false;
+    },
+    onShouldBlockNativeResponder: () => true,
   }), [
     currentTool, 
     currentColor, 
@@ -560,53 +513,122 @@ export default function CanvasScreen() {
     }
   };
 
+  // Web için canvas referansı
+  const htmlCanvasRef = useRef<any>(null);
+
+  // Web için paths'i HTML canvas'a çiz
+  const drawPathsOnHtmlCanvas = () => {
+    if (!htmlCanvasRef.current) return;
+    const canvas = htmlCanvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Tüm path'leri çiz
+    paths.forEach((path) => {
+      if (path.points.length < 2) return;
+      ctx.strokeStyle = path.color;
+      ctx.lineWidth = path.strokeWidth;
+      ctx.beginPath();
+      ctx.moveTo(path.points[0].x, path.points[0].y);
+      for (let i = 1; i < path.points.length; i++) {
+        ctx.lineTo(path.points[i].x, path.points[i].y);
+      }
+      ctx.stroke();
+    });
+  };
+
   // Çizimi Firebase'e kaydetme fonksiyonu
   const saveDrawingToFirebase = async () => {
-    // Kullanıcı giriş yapmış mı kontrol et
+    if (Platform.OS === 'web') {
+      // Web için: paths'i HTML canvas'a çiz ve base64 al
+      if (!htmlCanvasRef.current) {
+        Alert.alert('Hata', 'Web canvas referansı bulunamadı.');
+        return;
+      }
+      drawPathsOnHtmlCanvas();
+      const dataUrl = htmlCanvasRef.current.toDataURL('image/png');
+      // Kullanıcı giriş yapmış mı kontrol et
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        Alert.alert('Oturum Hatası', 'Çizim kaydetmek için giriş yapmalısınız.');
+        return;
+      }
+      if (paths.length === 0) {
+        Alert.alert('Uyarı', 'Kaydedilecek bir çizim bulunamadı. Lütfen önce bir şeyler çizin.');
+        return;
+      }
+      try {
+        setIsSaving(true);
+        const drawingTitle = `Çizim_${new Date().toLocaleDateString()}`;
+        const uniqueId = generateUniqueId();
+        const newDrawing: SavedDrawing = {
+          id: uniqueId,
+          userId: currentUser.uid,
+          imageData: dataUrl,
+          title: drawingTitle,
+          createdAt: Date.now()
+        };
+        const drawingRef = ref(rtdb, `drawings/${currentUser.uid}/${newDrawing.id}`);
+        await set(drawingRef, newDrawing);
+        await setDoc(doc(db, 'images', uniqueId), {
+          id: uniqueId,
+          userId: currentUser.uid,
+          imageData: dataUrl,
+          imageURL: dataUrl,
+          title: drawingTitle,
+          type: 'canvas',
+          createdAt: Date.now(),
+          upvotes: 0,
+          downvotes: 0
+        });
+        Alert.alert('Başarılı', 'Çiziminiz başarıyla kaydedildi. Profil sayfanızdan görüntüleyebilirsiniz.');
+      } catch (error) {
+        console.error('Firebase kayıt hatası:', error);
+        Alert.alert('Hata', 'Çizim kaydedilemedi. Lütfen tekrar deneyin.');
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+    // ... mevcut mobil kodu ...
     const currentUser = auth.currentUser;
     if (!currentUser) {
       Alert.alert('Oturum Hatası', 'Çizim kaydetmek için giriş yapmalısınız.');
       return;
     }
-
-    // Eğer resim boş ise uyarı ver
     if (paths.length === 0) {
       Alert.alert('Uyarı', 'Kaydedilecek bir çizim bulunamadı. Lütfen önce bir şeyler çizin.');
       return;
     }
-
     try {
       setIsSaving(true);
-
-      // Çizimi base64 olarak al
       const imageData = await saveCanvasAsBase64();
       if (!imageData) {
         setIsSaving(false);
         return;
       }
-
-      // Çizim için otomatik başlık oluştur (isteğe bağlı olarak kullanıcıdan alınabilir)
       const drawingTitle = `Çizim_${new Date().toLocaleDateString()}`;
-
-      // Yeni bir çizim verisi oluştur
+      const uniqueId = generateUniqueId();
       const newDrawing: SavedDrawing = {
-        id: generateUniqueId(),
+        id: uniqueId,
         userId: currentUser.uid,
         imageData: imageData,
         title: drawingTitle,
         createdAt: Date.now()
       };
-
-      // Realtime Database'de referans oluştur
       const drawingRef = ref(rtdb, `drawings/${currentUser.uid}/${newDrawing.id}`);
-      
-      // Veriyi kaydet
       await set(drawingRef, newDrawing);
-
+      await setDoc(doc(db, 'images', uniqueId), {
+        id: uniqueId,
+        userId: currentUser.uid,
+        imageData: imageData,
+        imageURL: imageData,
+        title: drawingTitle,
+        type: 'canvas',
+        createdAt: Date.now(),
+        upvotes: 0,
+        downvotes: 0
+      });
       Alert.alert('Başarılı', 'Çiziminiz başarıyla kaydedildi. Profil sayfanızdan görüntüleyebilirsiniz.');
-      
-      // İsteğe bağlı olarak canvas'ı temizle
-      // clearCanvas();
     } catch (error) {
       console.error('Firebase kayıt hatası:', error);
       Alert.alert('Hata', 'Çizim kaydedilemedi. Lütfen tekrar deneyin.');
@@ -796,6 +818,15 @@ export default function CanvasScreen() {
           ))}
         </ScrollView>
       </View>
+
+      {Platform.OS === 'web' && (
+        <canvas
+          ref={htmlCanvasRef}
+          width={canvasLayout.current.width || 400}
+          height={canvasLayout.current.height || 400}
+          style={{ display: 'none' }}
+        />
+      )}
     </SafeAreaView>
   );
 }

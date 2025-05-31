@@ -1,7 +1,7 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { ThemeProvider as NavigationThemeProvider, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
@@ -10,6 +10,8 @@ import { auth } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { ActivityIndicator, View } from 'react-native';
 import { Colors } from '../constants/Colors';
+import { setupFirestoreCollections } from './setup';
+import { ThemeProvider as CustomThemeProvider } from '../context/ThemeContext';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -31,6 +33,7 @@ function RootLayout() {
   });
 
   const [initializing, setInitializing] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   
   useEffect(() => {
     if (error) throw error;
@@ -46,8 +49,14 @@ function RootLayout() {
     try {
       const unsubscribe = onAuthStateChanged(auth, (user) => {
         setInitializing(false);
+        setIsLoggedIn(!!user);
+        // Kullanıcı giriş yaptığında Firestore koleksiyonlarını kur
+        if (user) {
+          setupFirestoreCollections()
+            .then(() => console.log('Firestore koleksiyonları kontrol edildi'))
+            .catch(err => console.error('Firestore kurulum hatası:', err));
+        }
       });
-      
       return () => unsubscribe();
     } catch (err) {
       console.error("Auth hata:", err);
@@ -55,6 +64,16 @@ function RootLayout() {
       return () => {};
     }
   }, []);
+
+  useEffect(() => {
+    if (!initializing) {
+      if (isLoggedIn === false) {
+        router.replace('/auth/login');
+      } else if (isLoggedIn === true) {
+        router.replace('/(tabs)/profile');
+      }
+    }
+  }, [initializing, isLoggedIn]);
 
   if (!loaded || initializing) {
     return (
@@ -64,7 +83,11 @@ function RootLayout() {
     );
   }
 
-  return <RootLayoutNav />;
+  return (
+    <CustomThemeProvider>
+      <RootLayoutNav />
+    </CustomThemeProvider>
+  );
 }
 
 function RootLayoutNav() {
@@ -72,13 +95,12 @@ function RootLayoutNav() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="auth" options={{ headerShown: false }} />
         </Stack>
-      </ThemeProvider>
+      </NavigationThemeProvider>
     </GestureHandlerRootView>
   );
 }

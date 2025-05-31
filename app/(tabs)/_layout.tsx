@@ -1,7 +1,7 @@
 import { Tabs } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import { Colors } from '../../constants/Colors';
-import { Ionicons, FontAwesome, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, FontAwesome, MaterialCommunityIcons, AntDesign } from '@expo/vector-icons';
 
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof Ionicons>['name'];
@@ -24,6 +24,13 @@ function MCIcon(props: {
   return <MaterialCommunityIcons size={24} style={{ marginBottom: -3 }} {...props} />;
 }
 
+function AntIcon(props: {
+  name: React.ComponentProps<typeof AntDesign>['name'];
+  color: string;
+}) {
+  return <AntDesign size={22} style={{ marginBottom: -3 }} {...props} />;
+}
+
 function TabsLayout() {
   const colorScheme = useColorScheme();
 
@@ -36,7 +43,8 @@ function TabsLayout() {
           borderTopWidth: 0,
           elevation: 0,
           backgroundColor: colorScheme === 'dark' ? Colors.dark.background : Colors.light.background,
-          height: 60,
+          height: 76,
+          paddingBottom: 16,
         },
         tabBarLabelStyle: {
           fontSize: 12,
@@ -63,6 +71,13 @@ function TabsLayout() {
         options={{
           title: 'Resim Üret',
           tabBarIcon: ({ color }) => <MCIcon name="robot" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="explore"
+        options={{
+          title: 'Keşfet',
+          tabBarIcon: ({ color }) => <TabBarIcon name="compass" color={color} />,
         }}
       />
       <Tabs.Screen

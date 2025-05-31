@@ -75,8 +75,8 @@ function LoginScreen() {
       
       <View style={styles.contentContainer}>
         <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>ArtApp</Text>
-          <Text style={styles.subtitleText}>Sanatsal Keşifler</Text>
+          <Text style={styles.logoText}>DoodleAI</Text>
+          <Text style={styles.subtitleText}>Yapay Zeka ile Sanat</Text>
         </View>
         
         <View style={styles.formContainer}>

@@ -1,0 +1,70 @@
+// Firebase Güvenlik Kuralları
+// Bu kuralları Firebase konsolunuza kopyalayın
+// https://console.firebase.google.com/project/_/firestore/rules
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Tüm kullanıcıların okuma yapmasına izin ver, yazma işlemleri yetki gerektirir
+    match /images/{imageId} {
+      // Herkes resimleri görebilir
+      allow read: if true;
+      
+      // Sadece giriş yapmış kullanıcılar yeni resim oluşturabilir
+      allow create: if request.auth != null;
+      
+      // Resim sahibi güncelleme ve silme yapabilir
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
+    // Oylar koleksiyonu
+    match /votes/{voteId} {
+      // Herkes oyları görebilir
+      allow read: if true;
+      
+      // Sadece giriş yapmış kullanıcılar oy verebilir
+      allow create: if request.auth != null;
+      
+      // Kullanıcılar sadece kendi oylarını güncelleyebilir
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
+    // Kullanıcı profilleri
+    match /users/{userId} {
+      // Herkes kullanıcı profillerini görebilir
+      allow read: if true;
+      
+      // Kullanıcılar sadece kendi profillerini oluşturabilir ve düzenleyebilir
+      allow create, update, delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Diğer tüm koleksiyonlar için varsayılan kural
+    match /{document=**} {
+      // Herkes okuyabilir, sadece oturum açmış kullanıcılar yazabilir
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}
+
+// Firebase Realtime Database kuralları
+// Bu kuralları https://console.firebase.google.com/project/_/database/rules adresine kopyalayın
+
+{
+  "rules": {
+    "drawings": {
+      "$userId": {
+        // Herkes resimleri okuyabilir
+        ".read": true,
+        // Kullanıcılar sadece kendi çizimlerini yazabilir
+        ".write": "auth != null && auth.uid == $userId"
+      }
+    },
+    // Diğer tüm veriler için
+    "$other": {
+      ".read": true,
+      ".write": "auth != null"
+    }
+  }
+} 

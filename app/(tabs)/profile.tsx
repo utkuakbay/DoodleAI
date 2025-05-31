@@ -13,7 +13,9 @@ import {
   Dimensions,
   Modal,
   Alert,
-  TextInput
+  TextInput,
+  Platform,
+  Pressable
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -22,8 +24,10 @@ import { useColorScheme } from 'react-native';
 import { router } from 'expo-router';
 import { signOut } from 'firebase/auth';
 import { auth, rtdb, db } from '../firebase';
-import { ref, onValue, remove } from 'firebase/database';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { ref, onValue, remove, set } from 'firebase/database';
+import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { useTheme } from '../../context/ThemeContext';
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 
 // Test verilerini kullan
 const mockUserData = {
@@ -72,9 +76,19 @@ interface SavedDrawing {
   createdAt: number;
 }
 
+interface CommentType {
+  id: string;
+  userId: string;
+  username: string;
+  text: string;
+  createdAt: any;
+}
+
 function ProfileScreen() {
   const colorScheme = useColorScheme() || 'light';
   const isDark = colorScheme === 'dark';
+  const { theme, toggleTheme } = useTheme();
+  const isDarkTheme = theme === 'dark';
 
   const [userData, setUserData] = useState<UserData>({
     username: '',
@@ -87,7 +101,7 @@ function ProfileScreen() {
   });
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [darkModeEnabled, setDarkModeEnabled] = useState(isDark);
+  const [darkModeEnabled, setDarkModeEnabled] = useState(isDarkTheme);
   const [savedDrawings, setSavedDrawings] = useState<SavedDrawing[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDrawing, setSelectedDrawing] = useState<SavedDrawing | null>(null);
@@ -102,6 +116,37 @@ function ProfileScreen() {
     bio: '',
   });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [aboutModalVisible, setAboutModalVisible] = useState(false);
+  const [sssModalVisible, setSssModalVisible] = useState(false);
+  const [helpModalVisible, setHelpModalVisible] = useState(false);
+  const [favoritesModalVisible, setFavoritesModalVisible] = useState(false);
+  const [favoriteImages, setFavoriteImages] = useState<any[]>([]);
+  const [favoritesLoading, setFavoritesLoading] = useState(false);
+  const [stats, setStats] = useState([
+    {
+      label: 'Çizim',
+      value: userData.createdArtworks,
+      icon: 'brush',
+    },
+    {
+      label: 'Üretilen',
+      value: 15,
+      icon: 'star',
+    },
+    {
+      label: 'Favori',
+      value: 0,
+      icon: 'heart',
+    },
+  ]);
+  const [producedCount, setProducedCount] = useState(0);
+  const [drawnCount, setDrawnCount] = useState(0);
+  const [drawingComments, setDrawingComments] = useState<CommentType[]>([]);
+  const [drawingCommentsLoading, setDrawingCommentsLoading] = useState(false);
+
+  useEffect(() => {
+    setDarkModeEnabled(isDarkTheme);
+  }, [isDarkTheme]);
 
   // Kullanıcı verilerini ve çizimlerini yükle
   useEffect(() => {
@@ -182,44 +227,91 @@ function ProfileScreen() {
     loadUserData();
   }, []);
 
+  // Çizim sayısı değiştiğinde stats'ı güncelle
+  useEffect(() => {
+    setStats(prev => prev.map(stat =>
+      stat.label === 'Çizim' ? { ...stat, value: userData.createdArtworks } : stat
+    ));
+  }, [userData.createdArtworks]);
+
+  // Favori resimler güncellendiğinde stats'ı güncelle
+  useEffect(() => {
+    setStats(prev => prev.map(stat =>
+      stat.label === 'Favori' ? { ...stat, value: favoriteImages.length } : stat
+    ));
+  }, [favoriteImages]);
+
+  // Profil sayfası açıldığında favori resimleri de yükle
+  useEffect(() => {
+    fetchFavoriteImages();
+  }, []);
+
+  // Çizim ve üretilen (AI) resim sayılarını dinamik olarak güncelle
+  useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        const currentUser = auth.currentUser;
+        if (!currentUser) return;
+        const imagesRef = collection(db, 'images');
+        // AI ile üretilenler
+        const qGen = query(imagesRef, where('userId', '==', currentUser.uid), where('type', '==', 'generator'));
+        const snapshotGen = await getDocs(qGen);
+        setProducedCount(snapshotGen.size);
+        // Manuel çizimler
+        const qCanvas = query(imagesRef, where('userId', '==', currentUser.uid), where('type', '==', 'canvas'));
+        const snapshotCanvas = await getDocs(qCanvas);
+        setDrawnCount(snapshotCanvas.size);
+      } catch (e) {
+        setProducedCount(0);
+        setDrawnCount(0);
+      }
+    };
+    fetchCounts();
+  }, []);
+
+  // stats dizisini producedCount ve drawnCount ile güncelle
+  useEffect(() => {
+    setStats(prev => prev.map(stat =>
+      stat.label === 'Üretilen' ? { ...stat, value: producedCount } :
+      stat.label === 'Çizim' ? { ...stat, value: drawnCount } :
+      stat
+    ));
+  }, [producedCount, drawnCount]);
+
+  // Modal açıldığında yorumları çek
+  useEffect(() => {
+    if (showModal && selectedDrawing) {
+      fetchDrawingComments(selectedDrawing.id);
+    }
+  }, [showModal, selectedDrawing]);
+
+  const fetchDrawingComments = async (drawingId: any) => {
+    setDrawingCommentsLoading(true);
+    const q = query(
+      collection(db, 'comments'),
+      where('imageId', '==', drawingId),
+      orderBy('createdAt', 'asc')
+    );
+    const snapshot = await getDocs(q);
+    setDrawingComments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CommentType)));
+    setDrawingCommentsLoading(false);
+  };
+
   const menuItems = [
     {
-      title: 'Çalışmalarım',
-      icon: 'images',
-      color: Colors.primary,
-    },
-    {
-      title: 'Ayarlar',
-      icon: 'settings',
-      color: '#4A5568',
+      title: 'SSS',
+      icon: 'help-circle',
+      color: Colors.accent,
     },
     {
       title: 'Yardım',
-      icon: 'help-circle',
-      color: Colors.accent,
+      icon: 'help-buoy',
+      color: Colors.primary,
     },
     {
       title: 'Hakkında',
       icon: 'information-circle',
       color: Colors.success,
-    },
-  ];
-
-  const stats = [
-    {
-      label: 'Çizim',
-      value: userData.createdArtworks,
-      icon: 'brush',
-    },
-    {
-      label: 'Üretilen',
-      value: 15,
-      icon: 'star',
-    },
-    {
-      label: 'Favori',
-      value: 42,
-      icon: 'heart',
     },
   ];
 
@@ -236,11 +328,26 @@ function ProfileScreen() {
   const deleteDrawing = async (drawingId: string) => {
     try {
       const currentUser = auth.currentUser;
-      if (!currentUser) return;
-      
-      const drawingRef = ref(rtdb, `drawings/${currentUser.uid}/${drawingId}`);
-      await remove(drawingRef);
-      
+      if (!currentUser) {
+        Alert.alert('Oturum Hatası', 'Çizim silmek için tekrar giriş yapmalısınız.');
+        return;
+      }
+      // Realtime Database'den sil
+      try {
+        const drawingRef = ref(rtdb, `drawings/${currentUser.uid}/${drawingId}`);
+        await remove(drawingRef);
+      } catch (err) {
+        console.error('Realtime Database silme hatası:', err);
+        Alert.alert('Hata', 'Realtime Database silme işlemi başarısız.');
+      }
+      // Firestore'dan da sil
+      try {
+        const imageDocRef = doc(db, 'images', drawingId);
+        await deleteDoc(imageDocRef);
+      } catch (err) {
+        console.error('Firestore silme hatası:', err);
+        Alert.alert('Hata', 'Firestore silme işlemi başarısız.');
+      }
       Alert.alert('Başarılı', 'Çizim başarıyla silindi.');
       setShowModal(false);
     } catch (error) {
@@ -297,6 +404,22 @@ function ProfileScreen() {
     }
   };
 
+  // Profil fotoğrafı olarak ayarlama fonksiyonu
+  const setAsProfilePhoto = async (imageUrl: string) => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+      // Firestore'da kullanıcı profilini güncelle
+      const userDocRef = doc(db, 'users', currentUser.uid);
+      await setDoc(userDocRef, { profileImage: imageUrl }, { merge: true });
+      // Local state'i güncelle
+      setUserData(prev => ({ ...prev, profileImage: imageUrl }));
+      Alert.alert('Başarılı', 'Profil fotoğrafınız güncellendi.');
+    } catch (error) {
+      Alert.alert('Hata', 'Profil fotoğrafı güncellenemedi.');
+    }
+  };
+
   // Çizim detayları modal'ı
   const renderDrawingModal = () => {
     if (!selectedDrawing) return null;
@@ -309,13 +432,13 @@ function ProfileScreen() {
         onRequestClose={() => setShowModal(false)}
       >
         <View style={styles.modalContainer}>
-          <View style={[styles.modalContent, {backgroundColor: isDark ? '#252A37' : 'white'}]}>
+          <View style={[styles.modalContent, {backgroundColor: isDarkTheme ? '#252A37' : 'white'}]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, {color: isDark ? 'white' : 'black'}]}>
+              <Text style={[styles.modalTitle, {color: isDarkTheme ? 'white' : 'black'}]}>
                 {selectedDrawing.title}
               </Text>
               <TouchableOpacity onPress={() => setShowModal(false)}>
-                <Ionicons name="close" size={24} color={isDark ? 'white' : 'black'} />
+                <Ionicons name="close" size={24} color={isDarkTheme ? 'white' : 'black'} />
               </TouchableOpacity>
             </View>
             
@@ -325,31 +448,115 @@ function ProfileScreen() {
               resizeMode="contain"
             />
             
-            <Text style={[styles.modalDate, {color: isDark ? '#ddd' : '#666'}]}>
+            <Text style={[styles.modalDate, {color: isDarkTheme ? '#ddd' : '#666'}]}>
               {new Date(selectedDrawing.createdAt).toLocaleDateString()}
             </Text>
             
             <View style={styles.modalActions}>
-              <TouchableOpacity 
-                style={[styles.modalButton, {backgroundColor: Colors.error + '20'}]}
-                onPress={() => {
-                  Alert.alert(
-                    'Çizimi Sil',
-                    'Bu çizimi silmek istediğinize emin misiniz? Bu işlem geri alınamaz.',
-                    [
-                      { text: 'İptal', style: 'cancel' },
-                      { 
-                        text: 'Sil', 
-                        style: 'destructive',
-                        onPress: () => deleteDrawing(selectedDrawing.id)
-                      }
-                    ]
-                  );
-                }}
-              >
-                <Ionicons name="trash-outline" size={20} color={Colors.error} />
-                <Text style={[styles.modalButtonText, {color: Colors.error}]}>Sil</Text>
-              </TouchableOpacity>
+              {Platform.OS === 'web' ? (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                    onClick={() => {
+                      deleteDrawing(selectedDrawing.id);
+                      setShowModal(false);
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={20} color={Colors.error} />
+                    <Text style={{ color: Colors.error, marginLeft: 8 }}>Sil</Text>
+                  </button>
+                  <button
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                    onClick={() => setAsProfilePhoto(selectedDrawing.imageData)}
+                  >
+                    <Ionicons name="person-circle-outline" size={20} color={Colors.primary} />
+                    <Text style={{ color: Colors.primary, marginLeft: 8 }}>Profil Fotoğrafı Olarak Ayarla</Text>
+                  </button>
+                </div>
+              ) : (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-evenly', marginTop: 20 }}>
+                  <TouchableOpacity 
+                    style={[styles.modalButton, {backgroundColor: Colors.error + '20'}]}
+                    onPress={() => {
+                      Alert.alert(
+                        'Çizimi Sil',
+                        'Bu çizimi silmek istediğinize emin misiniz? Bu işlem geri alınamaz.',
+                        [
+                          { text: 'İptal', style: 'cancel' },
+                          { 
+                            text: 'Sil', 
+                            style: 'destructive',
+                            onPress: () => deleteDrawing(selectedDrawing.id)
+                          }
+                        ]
+                      );
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={20} color={Colors.error} />
+                    <Text style={[styles.modalButtonText, {color: Colors.error}]}>Sil</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, {backgroundColor: Colors.primary + '20'}]}
+                    onPress={() => setAsProfilePhoto(selectedDrawing.imageData)}
+                  >
+                    <Ionicons name="person-circle-outline" size={20} color={Colors.primary} />
+                    <Text style={[styles.modalButtonText, {color: Colors.primary}]}>Profil Fotoğrafı Olarak Ayarla</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+
+            <View style={{maxHeight: 200, marginTop: 10, width: '100%'}}>
+              {drawingCommentsLoading ? <ActivityIndicator /> : (
+                drawingComments.length === 0 ? (
+                  <Text style={{color: isDarkTheme ? '#fff' : '#000', textAlign: 'center', marginTop: 10}}>Henüz yorum yok.</Text>
+                ) : (
+                  <FlatList
+                    data={drawingComments}
+                    keyExtractor={item => item.id}
+                    renderItem={({item}) => (
+                      <View style={{
+                        backgroundColor: isDarkTheme ? 'rgba(255,255,255,0.07)' : '#F5F8FF',
+                        borderRadius: 10,
+                        padding: 10,
+                        marginBottom: 10,
+                        shadowColor: '#000',
+                        shadowOpacity: 0.04,
+                        shadowRadius: 2,
+                        elevation: 1,
+                      }}>
+                        <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 2}}>
+                          <Text style={{
+                            fontWeight: 'bold',
+                            color: isDarkTheme ? Colors.primary : Colors.primary,
+                            fontSize: 15,
+                            marginRight: 6
+                          }}>{item.username}</Text>
+                        </View>
+                        <Text style={{
+                          color: isDarkTheme ? '#fff' : '#222',
+                          fontSize: 14,
+                          lineHeight: 19
+                        }}>{item.text}</Text>
+                      </View>
+                    )}
+                  />
+                )
+              )}
             </View>
           </View>
         </View>
@@ -367,38 +574,38 @@ function ProfileScreen() {
         onRequestClose={closeEditProfile}
       >
         <View style={styles.modalContainer}>
-          <View style={[styles.modalContent, {backgroundColor: isDark ? '#252A37' : 'white'}]}>
+          <View style={[styles.modalContent, {backgroundColor: isDarkTheme ? '#252A37' : 'white'}]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, {color: isDark ? 'white' : 'black'}]}>
+              <Text style={[styles.modalTitle, {color: isDarkTheme ? 'white' : 'black'}]}>
                 Profili Düzenle
               </Text>
               <TouchableOpacity onPress={closeEditProfile}>
-                <Ionicons name="close" size={24} color={isDark ? 'white' : 'black'} />
+                <Ionicons name="close" size={24} color={isDarkTheme ? 'white' : 'black'} />
               </TouchableOpacity>
             </View>
             
             <View style={styles.inputContainer}>
-              <Text style={[styles.inputLabel, {color: isDark ? '#ddd' : '#666'}]}>
+              <Text style={[styles.inputLabel, {color: isDarkTheme ? '#ddd' : '#666'}]}>
                 Ad Soyad
               </Text>
               <TextInput
                 style={[
                   styles.input,
                   {
-                    color: isDark ? 'white' : 'black',
-                    backgroundColor: isDark ? '#1A202C' : '#F7FAFC',
-                    borderColor: isDark ? '#2D3748' : '#E2E8F0'
+                    color: isDarkTheme ? 'white' : 'black',
+                    backgroundColor: isDarkTheme ? '#1A202C' : '#F7FAFC',
+                    borderColor: isDarkTheme ? '#2D3748' : '#E2E8F0'
                   }
                 ]}
                 value={editedUserData.fullName}
                 onChangeText={(text) => setEditedUserData(prev => ({...prev, fullName: text}))}
                 placeholder="Adınız Soyadınız"
-                placeholderTextColor={isDark ? '#718096' : '#A0AEC0'}
+                placeholderTextColor={isDarkTheme ? '#718096' : '#A0AEC0'}
               />
             </View>
             
             <View style={styles.inputContainer}>
-              <Text style={[styles.inputLabel, {color: isDark ? '#ddd' : '#666'}]}>
+              <Text style={[styles.inputLabel, {color: isDarkTheme ? '#ddd' : '#666'}]}>
                 Biyografi
               </Text>
               <TextInput
@@ -406,16 +613,16 @@ function ProfileScreen() {
                   styles.input,
                   styles.textArea,
                   {
-                    color: isDark ? 'white' : 'black',
-                    backgroundColor: isDark ? '#1A202C' : '#F7FAFC',
-                    borderColor: isDark ? '#2D3748' : '#E2E8F0',
+                    color: isDarkTheme ? 'white' : 'black',
+                    backgroundColor: isDarkTheme ? '#1A202C' : '#F7FAFC',
+                    borderColor: isDarkTheme ? '#2D3748' : '#E2E8F0',
                     textAlignVertical: 'top'
                   }
                 ]}
                 value={editedUserData.bio}
                 onChangeText={(text) => setEditedUserData(prev => ({...prev, bio: text}))}
                 placeholder="Kendinizi tanıtın"
-                placeholderTextColor={isDark ? '#718096' : '#A0AEC0'}
+                placeholderTextColor={isDarkTheme ? '#718096' : '#A0AEC0'}
                 multiline
                 numberOfLines={4}
               />
@@ -454,7 +661,7 @@ function ProfileScreen() {
   // Çizim listesi renderleyicisi
   const renderDrawingItem = ({ item }: { item: SavedDrawing }) => (
     <TouchableOpacity 
-      style={[styles.drawingItem, {backgroundColor: isDark ? '#252A37' : '#F5F8FF'}]}
+      style={[styles.drawingItem, {backgroundColor: isDarkTheme ? '#252A37' : '#F5F8FF'}]}
       onPress={() => {
         setSelectedDrawing(item);
         setShowModal(true);
@@ -467,28 +674,78 @@ function ProfileScreen() {
       />
       <View style={styles.drawingInfo}>
         <Text 
-          style={[styles.drawingTitle, {color: isDark ? 'white' : 'black'}]}
+          style={[styles.drawingTitle, {color: isDarkTheme ? 'white' : 'black'}]}
           numberOfLines={1}
         >
           {item.title}
         </Text>
-        <Text style={[styles.drawingDate, {color: isDark ? '#ddd' : '#666'}]}>
+        <Text style={[styles.drawingDate, {color: isDarkTheme ? '#ddd' : '#666'}]}>
           {new Date(item.createdAt).toLocaleDateString()}
         </Text>
       </View>
     </TouchableOpacity>
   );
 
+  // Karanlık mod switch'i için fonksiyon
+  const handleDarkModeToggle = () => {
+    toggleTheme();
+  };
+
+  // Favoriler modalı açıldığında kullanıcının beğendiği resimleri getir
+  const fetchFavoriteImages = async () => {
+    setFavoritesLoading(true);
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+      // Kullanıcının like attığı vote'ları bul
+      const votesRef = collection(db, 'votes');
+      const userVotesQuery = query(
+        votesRef,
+        where('userId', '==', currentUser.uid),
+        where('voteType', '==', 'up')
+      );
+      const votesSnapshot = await getDocs(userVotesQuery);
+      const imageIds = votesSnapshot.docs.map(doc => doc.data().imageId);
+      // İlgili resimleri getir
+      const imagesRef = collection(db, 'images');
+      const favoriteImagesArr = [];
+      for (const imageId of imageIds) {
+        const imageDoc = await getDoc(doc(imagesRef, imageId));
+        if (imageDoc.exists()) {
+          favoriteImagesArr.push({ id: imageId, ...imageDoc.data() });
+        }
+      }
+      setFavoriteImages(favoriteImagesArr);
+    } catch (error) {
+      setFavoriteImages([]);
+    } finally {
+      setFavoritesLoading(false);
+    }
+  };
+
+  // Favoriler butonuna basınca modalı aç ve verileri getir
+  const handleOpenFavorites = () => {
+    setFavoritesModalVisible(true);
+    fetchFavoriteImages();
+  };
+
+  // Favori kutucuğuna tıklanınca modalı aç
+  const handleStatPress = (statLabel: string) => {
+    if (statLabel === 'Favori') {
+      handleOpenFavorites();
+    }
+  };
+
   if (isUserDataLoading) {
     return (
       <SafeAreaView style={[
         styles.container,
-        {backgroundColor: isDark ? Colors.dark.background : Colors.light.background}
+        {backgroundColor: isDarkTheme ? Colors.dark.background : Colors.light.background}
       ]}>
-        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <StatusBar style={isDarkTheme ? 'light' : 'dark'} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={[styles.loadingText, {color: isDark ? Colors.dark.text : Colors.light.text}]}>
+          <Text style={[styles.loadingText, {color: isDarkTheme ? Colors.dark.text : Colors.light.text}]}>
             Profil Yükleniyor...
           </Text>
         </View>
@@ -499,14 +756,14 @@ function ProfileScreen() {
   return (
     <SafeAreaView style={[
       styles.container,
-      {backgroundColor: isDark ? Colors.dark.background : Colors.light.background}
+      {backgroundColor: isDarkTheme ? Colors.dark.background : Colors.light.background}
     ]}>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <StatusBar style={isDarkTheme ? 'light' : 'dark'} />
       
       <View style={styles.header}>
         <Text style={[
           styles.title,
-          {color: isDark ? Colors.dark.text : Colors.light.text}
+          {color: isDarkTheme ? Colors.dark.text : Colors.light.text}
         ]}>
           Profil
         </Text>
@@ -524,7 +781,7 @@ function ProfileScreen() {
           <View style={styles.profileNameSection}>
             <Text style={[
               styles.username,
-              {color: isDark ? Colors.dark.text : Colors.light.text}
+              {color: isDarkTheme ? Colors.dark.text : Colors.light.text}
             ]}>
               {userData.fullName}
             </Text>
@@ -540,21 +797,21 @@ function ProfileScreen() {
           
           <Text style={[
             styles.email,
-            {color: isDark ? Colors.dark.icon : Colors.light.icon}
+            {color: isDarkTheme ? Colors.dark.icon : Colors.light.icon}
           ]}>
             @{userData.username}
           </Text>
           
           <Text style={[
             styles.email,
-            {color: isDark ? Colors.dark.icon : Colors.light.icon}
+            {color: isDarkTheme ? Colors.dark.icon : Colors.light.icon}
           ]}>
             {userData.email}
           </Text>
           
           <Text style={[
             styles.bio,
-            {color: isDark ? Colors.dark.text : Colors.light.text}
+            {color: isDarkTheme ? Colors.dark.text : Colors.light.text}
           ]}>
             {userData.bio}
           </Text>
@@ -562,27 +819,29 @@ function ProfileScreen() {
 
         <View style={styles.statsContainer}>
           {stats.map((stat, index) => (
-            <View 
-              key={index} 
+            <TouchableOpacity
+              key={index}
               style={[
                 styles.statItem,
-                {backgroundColor: isDark ? '#252A37' : '#F5F8FF'}
+                {backgroundColor: isDarkTheme ? '#252A37' : '#F5F8FF'}
               ]}
+              onPress={() => handleStatPress(stat.label)}
+              activeOpacity={stat.label === 'Favori' ? 0.7 : 1}
             >
               <MaterialCommunityIcons name={stat.icon as any} size={24} color={Colors.primary} />
               <Text style={[
                 styles.statValue,
-                {color: isDark ? Colors.dark.text : Colors.light.text}
+                {color: isDarkTheme ? Colors.dark.text : Colors.light.text}
               ]}>
                 {stat.value}
               </Text>
               <Text style={[
                 styles.statLabel,
-                {color: isDark ? Colors.dark.icon : Colors.light.icon}
+                {color: isDarkTheme ? Colors.dark.icon : Colors.light.icon}
               ]}>
                 {stat.label}
               </Text>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
 
@@ -590,7 +849,7 @@ function ProfileScreen() {
         <View style={styles.drawingsSection}>
           <Text style={[
             styles.sectionTitle,
-            {color: isDark ? Colors.dark.text : Colors.light.text}
+            {color: isDarkTheme ? Colors.dark.text : Colors.light.text}
           ]}>
             Çizimlerim
           </Text>
@@ -600,7 +859,7 @@ function ProfileScreen() {
           ) : savedDrawings.length === 0 ? (
             <View style={styles.emptyContainer}>
               <MaterialCommunityIcons name="brush" size={50} color={Colors.primary} />
-              <Text style={[styles.emptyText, {color: isDark ? Colors.dark.text : Colors.light.text}]}>
+              <Text style={[styles.emptyText, {color: isDarkTheme ? Colors.dark.text : Colors.light.text}]}>
                 Henüz kaydedilmiş çizim yok
               </Text>
               <TouchableOpacity 
@@ -628,20 +887,20 @@ function ProfileScreen() {
         <View style={styles.settingsSection}>
           <Text style={[
             styles.sectionTitle,
-            {color: isDark ? Colors.dark.text : Colors.light.text}
+            {color: isDarkTheme ? Colors.dark.text : Colors.light.text}
           ]}>
             Tercihler
           </Text>
           
           <View style={[
             styles.settingItem, 
-            {borderBottomColor: isDark ? '#2D3748' : '#E2E8F0'}
+            {borderBottomColor: isDarkTheme ? '#2D3748' : '#E2E8F0'}
           ]}>
             <View style={styles.settingInfo}>
               <Ionicons name="notifications" size={22} color={Colors.primary} />
               <Text style={[
                 styles.settingText,
-                {color: isDark ? Colors.dark.text : Colors.light.text}
+                {color: isDarkTheme ? Colors.dark.text : Colors.light.text}
               ]}>
                 Bildirimler
               </Text>
@@ -659,14 +918,14 @@ function ProfileScreen() {
               <Ionicons name="moon" size={22} color={Colors.primary} />
               <Text style={[
                 styles.settingText,
-                {color: isDark ? Colors.dark.text : Colors.light.text}
+                {color: isDarkTheme ? Colors.dark.text : Colors.light.text}
               ]}>
                 Karanlık Mod
               </Text>
             </View>
             <Switch
               value={darkModeEnabled}
-              onValueChange={setDarkModeEnabled}
+              onValueChange={handleDarkModeToggle}
               thumbColor={darkModeEnabled ? Colors.primary : '#F4F3F4'}
               trackColor={{ false: '#767577', true: `${Colors.primary}80` }}
             />
@@ -676,7 +935,7 @@ function ProfileScreen() {
         <View style={styles.menuSection}>
           <Text style={[
             styles.sectionTitle,
-            {color: isDark ? Colors.dark.text : Colors.light.text}
+            {color: isDarkTheme ? Colors.dark.text : Colors.light.text}
           ]}>
             Menü
           </Text>
@@ -688,9 +947,14 @@ function ProfileScreen() {
                 styles.menuItem,
                 index !== menuItems.length - 1 && {
                   borderBottomWidth: 1,
-                  borderBottomColor: isDark ? '#2D3748' : '#E2E8F0'
+                  borderBottomColor: isDarkTheme ? '#2D3748' : '#E2E8F0'
                 }
               ]}
+              onPress={() => {
+                if (item.title === 'Hakkında') setAboutModalVisible(true);
+                else if (item.title === 'SSS') setSssModalVisible(true);
+                else if (item.title === 'Yardım') setHelpModalVisible(true);
+              }}
             >
               <View style={styles.menuItemContent}>
                 <View style={[styles.menuIconContainer, {backgroundColor: `${item.color}20`}]}>
@@ -698,12 +962,12 @@ function ProfileScreen() {
                 </View>
                 <Text style={[
                   styles.menuItemText,
-                  {color: isDark ? Colors.dark.text : Colors.light.text}
+                  {color: isDarkTheme ? Colors.dark.text : Colors.light.text}
                 ]}>
                   {item.title}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={isDark ? Colors.dark.icon : Colors.light.icon} />
+              <Ionicons name="chevron-forward" size={20} color={isDarkTheme ? Colors.dark.icon : Colors.light.icon} />
             </TouchableOpacity>
           ))}
         </View>
@@ -719,7 +983,7 @@ function ProfileScreen() {
         <View style={styles.footer}>
           <Text style={[
             styles.footerText,
-            {color: isDark ? Colors.dark.icon : Colors.light.icon}
+            {color: isDarkTheme ? Colors.dark.icon : Colors.light.icon}
           ]}>
             ArtApp v1.0.0
           </Text>
@@ -728,6 +992,132 @@ function ProfileScreen() {
       
       {renderDrawingModal()}
       {renderEditProfileModal()}
+
+      {/* Hakkında Modalı */}
+      <Modal
+        visible={aboutModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setAboutModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={[styles.modalContent, {backgroundColor: isDark ? '#252A37' : 'white'}]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, {color: isDark ? 'white' : 'black'}]}>Hakkında</Text>
+              <TouchableOpacity onPress={() => setAboutModalVisible(false)}>
+                <Ionicons name="close" size={24} color={isDark ? 'white' : 'black'} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{maxHeight: 350}}>
+              <Text style={{color: isDark ? 'white' : 'black', fontWeight: 'bold', fontSize: 16, marginBottom: 8}}>DoodleAI Hakkında</Text>
+              <Text style={{color: isDark ? 'white' : 'black', marginBottom: 16}}>
+                DoodleAI, Uygulamanın temel amacı, dijital sanat üreticilerini özellikle illüstratörler, NFT tasarımcıları ve sanat meraklılarını bir araya getiren, çizim yapma, yapay zekâ destekli görsel üretimi gerçekleştirme ve bu içerikleri etkileşimli bir şekilde paylaşma imkânı sunan bütünleşik bir platform sağlamaktır. Platform, hem manuel çizim araçları hem de generatif yapay zekâ teknolojileriyle kullanıcı deneyimini zenginleştirmeyi hedeflemektedir.
+              </Text>
+              <Text style={{color: isDark ? 'white' : 'black', fontWeight: 'bold', fontSize: 16, marginBottom: 8}}>Gizlilik Politikası</Text>
+              <Text style={{color: isDark ? 'white' : 'black'}}>
+                DoodleAI, kullanıcı verilerinin gizliliğine önem verir. Kişisel bilgileriniz üçüncü şahıslarla paylaşılmaz ve sadece uygulama deneyimini geliştirmek için kullanılır. Daha fazla bilgi için lütfen destek ekibimizle iletişime geçin.
+              </Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* SSS Modalı */}
+      <Modal
+        visible={sssModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setSssModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={[styles.modalContent, {backgroundColor: isDarkTheme ? '#252A37' : 'white'}]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, {color: isDarkTheme ? 'white' : 'black'}]}>Sıkça Sorulan Sorular</Text>
+              <TouchableOpacity onPress={() => setSssModalVisible(false)}>
+                <Ionicons name="close" size={24} color={isDarkTheme ? 'white' : 'black'} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{maxHeight: 350}}>
+              <Text style={{color: isDarkTheme ? 'white' : 'black', fontWeight: 'bold', fontSize: 16, marginBottom: 8}}>1. Uygulamayı kimler, neden kullanmalı?</Text>
+              <Text style={{color: isDarkTheme ? 'white' : 'black', marginBottom: 16}}>Bu uygulama; manuel çizim, yapay zekâ destekli görsel üretimi ve paylaşım özelliklerini entegre bir yapıda sunarak, bu üç işlevi bir araya getiren bütüncül bir platform ihtiyacını karşılamak üzere geliştirilmiştir. Mevcut sistemlerde bu özellikler genellikle ayrı uygulamalarda sunulurken, bu platform tüm bu süreçleri uyumlu ve etkileşimli bir şekilde bir araya getirmektedir. Uygulamanın ana hedef kitlesi NFT sanatçıları ve dijital çizerlerle, bu eserleri pazarlamak isteyen içerik üreticileri ve pazarlamacılardır. Ancak, sunduğu esnek araçlar ve kullanıcı dostu arayüz sayesinde, görsel sanatlarla ilgilenen her seviyedeki kullanıcıya hitap eden çok yönlü bir platform olarak tasarlanmıştır.</Text>
+              <Text style={{color: isDarkTheme ? 'white' : 'black', fontWeight: 'bold', fontSize: 16, marginBottom: 8}}>2. Uygulama Ücretsiz mi?</Text>
+              <Text style={{color: isDarkTheme ? 'white' : 'black', marginBottom: 16}}>Evet, uygulama şu an için tüm kullanıcılar tarafından tamamen ücretsiz olarak kullanılabilmektedir. Gelecekte sunulabilecek premium özellikler hakkında bilgilendirme, kullanıcılarla önceden paylaşılacaktır.</Text>
+              <Text style={{color: isDarkTheme ? 'white' : 'black', fontWeight: 'bold', fontSize: 16, marginBottom: 8}}>3. Çizimlerimi nasıl kaydedebilirim?</Text>
+              <Text style={{color: isDarkTheme ? 'white' : 'black'}}>Çiziminizi tamamladıktan veya yapay zekâ destekli bir görsel ürettikten sonra, ekranda beliren "Kaydet" butonuna tıklayarak çalışmanızı profilinize kaydedebilirsiniz. Kayıt işlemi sonrasında çiziminiz profil sayfanızda görüntülenebilir ve dilediğiniz zaman erişilebilir olacaktır.</Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Yardım Modalı */}
+      <Modal
+        visible={helpModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setHelpModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={[styles.modalContent, {backgroundColor: isDarkTheme ? '#252A37' : 'white'}]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, {color: isDarkTheme ? 'white' : 'black'}]}>Yardım</Text>
+              <TouchableOpacity onPress={() => setHelpModalVisible(false)}>
+                <Ionicons name="close" size={24} color={isDarkTheme ? 'white' : 'black'} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{maxHeight: 350}}>
+              <Text style={{color: isDarkTheme ? 'white' : 'black', fontSize: 16, marginBottom: 8}}>
+                Uygulama ile ilgili yardım almak için aşağıdaki adımları izleyebilirsiniz:
+              </Text>
+              <Text style={{color: isDarkTheme ? 'white' : 'black', marginBottom: 8}}>
+                • Profilinizi düzenlemek için üstteki "Düzenle" butonunu kullanabilirsiniz.
+              </Text>
+              <Text style={{color: isDarkTheme ? 'white' : 'black', marginBottom: 8}}>
+                • Çizim yapmak için ana menüden "Çizim Yap" seçeneğine tıklayın.
+              </Text>
+              <Text style={{color: isDarkTheme ? 'white' : 'black', marginBottom: 8}}>
+                • Sorun yaşarsanız veya destek almak isterseniz, uygulama geliştiricisiyle iletişime geçebilirsiniz.
+              </Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Favoriler Modalı */}
+      <Modal
+        visible={favoritesModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setFavoritesModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={[styles.modalContent, {backgroundColor: isDarkTheme ? '#252A37' : 'white'}]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, {color: isDarkTheme ? 'white' : 'black'}]}>Favorilerim</Text>
+              <TouchableOpacity onPress={() => setFavoritesModalVisible(false)}>
+                <Ionicons name="close" size={24} color={isDarkTheme ? 'white' : 'black'} />
+              </TouchableOpacity>
+            </View>
+            {favoritesLoading ? (
+              <ActivityIndicator size="large" color={Colors.primary} />
+            ) : favoriteImages.length === 0 ? (
+              <Text style={{color: isDarkTheme ? 'white' : 'black', marginTop: 20}}>Henüz favori resminiz yok.</Text>
+            ) : (
+              <FlatList
+                data={favoriteImages}
+                keyExtractor={item => item.id}
+                numColumns={2}
+                contentContainerStyle={{padding: 8}}
+                renderItem={({item}) => (
+                  <View style={{flex: 1, margin: 6, alignItems: 'center'}}>
+                    <Image source={{uri: item.imageURL || item.imageData}} style={{width: 120, height: 120, borderRadius: 12}} resizeMode="cover" />
+                    <Text style={{color: isDarkTheme ? 'white' : 'black', marginTop: 6, fontSize: 13}} numberOfLines={1}>{item.title || 'İsimsiz'}</Text>
+                  </View>
+                )}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

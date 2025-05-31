@@ -108,8 +108,8 @@ function RegisterScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.contentContainer}>
           <View style={styles.headerContainer}>
-            <Text style={styles.headerText}>Hesap Oluştur</Text>
-            <Text style={styles.subtitleText}>Sanat dünyasına katılın</Text>
+            <Text style={styles.headerText}>DoodleAI</Text>
+            <Text style={styles.subtitleText}>Yapay Zeka ile Sanat Dünyasına Katılın</Text>
           </View>
           
           <View style={styles.formContainer}>
