@@ -101,7 +101,7 @@ myProject/
 
 1. **Depoyu klonla:**
    ```bash
-   git clone <senin-repo-linkin>
+   git clone <https://github.com/utkuakbay/DoodleAI>
    cd myProject
    ```
 
